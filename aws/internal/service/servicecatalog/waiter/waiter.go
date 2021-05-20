@@ -29,6 +29,9 @@ const (
 	ServiceActionReadyTimeout  = 3 * time.Minute
 	ServiceActionDeleteTimeout = 3 * time.Minute
 
+	TagOptionResourceAssociationReadyTimeout  = 3 * time.Minute
+	TagOptionResourceAssociationDeleteTimeout = 3 * time.Minute
+
 	StatusNotFound    = "NOT_FOUND"
 	StatusUnavailable = "UNAVAILABLE"
 
@@ -297,6 +300,36 @@ func ServiceActionDeleted(conn *servicecatalog.ServiceCatalog, acceptLanguage, i
 	if tfawserr.ErrCodeEquals(err, servicecatalog.ErrCodeResourceNotFoundException) {
 		return nil
 	}
+
+	return err
+}
+
+func TagOptionResourceAssociationReady(conn *servicecatalog.ServiceCatalog, tagOptionID, resourceID string) (*servicecatalog.ResourceDetail, error) {
+	stateConf := &resource.StateChangeConf{
+		Pending: []string{StatusNotFound, StatusUnavailable},
+		Target:  []string{servicecatalog.StatusAvailable},
+		Refresh: TagOptionResourceAssociationStatus(conn, tagOptionID, resourceID),
+		Timeout: TagOptionResourceAssociationReadyTimeout,
+	}
+
+	outputRaw, err := stateConf.WaitForState()
+
+	if output, ok := outputRaw.(*servicecatalog.ResourceDetail); ok {
+		return output, err
+	}
+
+	return nil, err
+}
+
+func TagOptionResourceAssociationDeleted(conn *servicecatalog.ServiceCatalog, tagOptionID, resourceID string) error {
+	stateConf := &resource.StateChangeConf{
+		Pending: []string{servicecatalog.StatusAvailable},
+		Target:  []string{StatusNotFound, StatusUnavailable},
+		Refresh: TagOptionResourceAssociationStatus(conn, tagOptionID, resourceID),
+		Timeout: TagOptionResourceAssociationDeleteTimeout,
+	}
+
+	_, err := stateConf.WaitForState()
 
 	return err
 }
